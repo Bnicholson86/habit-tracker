@@ -1,3 +1,7 @@
+// TodoList.tsx
+// Main To-Do List component for the productivity app.
+// Handles To-Do, Done, and Tomorrow lists, including CRUD, drag-and-drop, timers, and integration with habits and goals.
+
 import React, { useState, useEffect, useRef } from 'react';
 import GreenCheckmark from './goals/GreenCheckmark';
 import {
@@ -6,72 +10,65 @@ import {
 import type { TodoTask } from '../utils/todoLocalStorage';
 import { markHabitComplete } from '../utils/habitLocalStorage';
 import { getGoals, addSubGoal, updateSubGoal, updateSubGoalText } from '../utils/goalsLocalStorage';
+import { useDragAndDropList } from '../hooks/useDragAndDropList';
+import { formatTime } from '../utils/format';
 
 const TIMER_STATE_KEY = 'todoTimerState';
 
-const formatTime = (seconds: number): string => {
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
-  return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-};
-
 const TodoList: React.FC = () => {
-  // Rollover at mount
+  // --- Rollover logic: move Tomorrow tasks to Today if due ---
   useEffect(() => { rolloverIfNeeded(); }, []);
 
-  // State
+  // --- State ---
   const [todoList, setTodoList] = useState<TodoTask[]>(getTodoList());
   const [doneList, setDoneList] = useState<TodoTask[]>(getDoneList());
   const [tomorrowList, setTomorrowList] = useState<TodoTask[]>(getTomorrowList());
   const [newTaskText, setNewTaskText] = useState('');
   const [newTaskEst, setNewTaskEst] = useState('');
-  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [editingText, setEditingText] = useState('');
   const [editingEst, setEditingEst] = useState('');
 
-  // Timer state
+  // --- Timer state ---
   const [timedTaskId, setTimedTaskId] = useState<string | null>(null);
   const [timerSeconds, setTimerSeconds] = useState(0);
   const timerRef = useRef<number | null>(null);
-  const [timerRunning, setTimerRunning] = useState(false);
 
-  // Restore timer state from localStorage on mount
+  // --- Restore timer state from localStorage on mount ---
   useEffect(() => {
     const timerState = localStorage.getItem(TIMER_STATE_KEY);
     if (timerState) {
-      const { timedTaskId, timerSeconds, timerRunning, lastUpdated } = JSON.parse(timerState);
+      const { timedTaskId, timerSeconds } = JSON.parse(timerState);
       setTimedTaskId(timedTaskId);
       setTimerSeconds(timerSeconds);
       // If browser was closed, pause timer but keep elapsed time
-      setTimerRunning(false);
     }
   }, []);
 
-  // Persist timer state to localStorage
+  // --- Persist timer state to localStorage ---
   useEffect(() => {
     localStorage.setItem(TIMER_STATE_KEY, JSON.stringify({
       timedTaskId,
       timerSeconds,
-      timerRunning,
       lastUpdated: Date.now(),
     }));
-  }, [timedTaskId, timerSeconds, timerRunning]);
+  }, [timedTaskId, timerSeconds]);
 
-  // Load lists from storage on mount
+  // --- Load lists from storage on mount ---
   useEffect(() => {
     setTodoList(getTodoList());
     setDoneList(getDoneList());
     setTomorrowList(getTomorrowList());
   }, []);
 
-  // Save lists to storage on change
+  // --- Save lists to storage on change ---
   useEffect(() => { if (todoList) localStorage.setItem('todoList', JSON.stringify(todoList)); }, [todoList]);
   useEffect(() => { if (doneList) localStorage.setItem('doneList', JSON.stringify(doneList)); }, [doneList]);
   useEffect(() => { if (tomorrowList) localStorage.setItem('tomorrowList', JSON.stringify(tomorrowList)); }, [tomorrowList]);
 
-  // Timer logic
+  // --- Timer logic: start/stop interval ---
   useEffect(() => {
-    if (timerRunning && timedTaskId) {
+    if (timedTaskId) {
       timerRef.current = setInterval(() => {
         setTimerSeconds(s => s + 1);
       }, 1000);
@@ -80,45 +77,32 @@ const TodoList: React.FC = () => {
       timerRef.current = null;
     }
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
-  }, [timerRunning, timedTaskId]);
+  }, [timedTaskId]);
 
-  // Add state for goal linking
-  const [goals, setGoals] = useState(() => getGoals().filter(g => !g.completed));
+  // --- Goal linking state ---
+  const [goals] = useState(() => getGoals().filter(g => !g.completed));
   const [newTaskGoalId, setNewTaskGoalId] = useState<string>('');
   const [editingGoalId, setEditingGoalId] = useState<string>('');
 
-  // Add drag-and-drop state
-  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
-  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
-
-  // Handle drag events
-  const handleDragStart = (index: number) => setDraggedIndex(index);
-  const handleDragOver = (index: number) => {
-    setDragOverIndex(index);
-  };
-  const handleDrop = (index: number) => {
-    if (draggedIndex === null || draggedIndex === index) {
-      setDraggedIndex(null);
-      setDragOverIndex(null);
-      return;
-    }
+  // --- Drag-and-drop state for To-Do list ---
+  const {
+    dragOverIndex,
+    handleDragStart,
+    handleDragOver,
+    handleDrop,
+    handleDragEnd,
+  } = useDragAndDropList((fromIdx, toIdx) => {
     const newList = [...todoList];
-    const [moved] = newList.splice(draggedIndex, 1);
-    newList.splice(index, 0, moved);
+    const [moved] = newList.splice(fromIdx, 1);
+    newList.splice(toIdx, 0, moved);
     setTodoList(newList);
     localStorage.setItem('todoList', JSON.stringify(newList));
-    setDraggedIndex(null);
-    setDragOverIndex(null);
-  };
-  const handleDragEnd = () => {
-    setDraggedIndex(null);
-    setDragOverIndex(null);
-  };
+  });
 
-  // Add new task
+  // --- Add new task (optionally links to a goal/sub-goal) ---
   const handleAddTask = () => {
     if (!newTaskText.trim()) return;
-    let goalId = newTaskGoalId;
+    const goalId = newTaskGoalId;
     let subGoalId = '';
     if (goalId) {
       const updatedGoal = addSubGoal(goalId, newTaskText.trim());
@@ -128,7 +112,7 @@ const TodoList: React.FC = () => {
         window.dispatchEvent(new Event('goalsUpdated'));
       }
     }
-    const task = addTask({
+    addTask({
       text: newTaskText.trim(),
       estimatedTime: newTaskEst.trim(),
       completed: false,
@@ -142,66 +126,30 @@ const TodoList: React.FC = () => {
     setNewTaskGoalId('');
   };
 
-  // Edit task
+  // --- Edit task (optionally updates linked sub-goal) ---
   const startEdit = (task: TodoTask) => {
-    setEditingId(task.id);
+    setEditingTaskId(task.id);
     setEditingText(task.text);
     setEditingEst(task.estimatedTime);
   };
   const saveEdit = (task: TodoTask) => {
-    let updated = { ...task, text: editingText, estimatedTime: editingEst };
-    if (editingGoalId && editingGoalId !== task.goalId) {
-      // If changing goal, add new sub-goal
-      const updatedGoal = addSubGoal(editingGoalId, editingText);
-      if (updatedGoal) {
-        const subGoal = updatedGoal.subGoals[updatedGoal.subGoals.length - 1];
-        updated.goalId = editingGoalId;
-        updated.subGoalId = subGoal.id;
-      }
-    } else if (task.goalId && task.subGoalId) {
-      // If editing text, update sub-goal text
-      updateSubGoalText(task.goalId, task.subGoalId, editingText);
-    }
+    const updated: TodoTask = { ...task, text: editingText.trim(), estimatedTime: editingEst.trim() };
     updateTask(updated);
-    setTodoList([...getTodoList()]);
-    setDoneList([...getDoneList()]);
-    setTomorrowList([...getTomorrowList()]);
-    setEditingId(null);
+    // If linked to a sub-goal, update its text too
+    if (task.goalId && task.subGoalId) {
+      updateSubGoalText(task.goalId, task.subGoalId, editingText.trim());
+    }
+    if (task.listType === 'todo') setTodoList([...getTodoList()]);
+    if (task.listType === 'done') setDoneList([...getDoneList()]);
+    if (task.listType === 'tomorrow') setTomorrowList([...getTomorrowList()]);
+    setEditingTaskId(null);
     setEditingText('');
     setEditingEst('');
-    setEditingGoalId('');
   };
   const cancelEdit = () => {
-    setEditingId(null);
+    setEditingTaskId(null);
     setEditingText('');
     setEditingEst('');
-  };
-
-  // Delete
-  const handleDelete = (task: TodoTask) => {
-    deleteTask(task.id, task.listType);
-    setTodoList([...getTodoList()]);
-    setDoneList([...getDoneList()]);
-    setTomorrowList([...getTomorrowList()]);
-  };
-
-  // Timer controls
-  const startTimer = (task: TodoTask) => {
-    setTimedTaskId(task.id);
-    setTimerSeconds(task.actualTime || 0);
-    setTimerRunning(true);
-  };
-  const stopTimer = () => {
-    if (timedTaskId) {
-      const task = todoList.find(t => t.id === timedTaskId);
-      if (task) {
-        updateTask({ ...task, actualTime: timerSeconds });
-        setTodoList([...getTodoList()]);
-      }
-    }
-    setTimerRunning(false);
-    setTimedTaskId(null);
-    setTimerSeconds(0);
   };
   const completeTask = (task: TodoTask) => {
     stopTimer();
@@ -234,6 +182,24 @@ const TodoList: React.FC = () => {
     setTodoList([...getTodoList()]);
   };
 
+  // --- Timer controls for each task ---
+  const startTimer = (task: TodoTask) => {
+    setTimedTaskId(task.id);
+    setTimerSeconds(task.actualTime || 0);
+  };
+  const stopTimer = () => {
+    if (timedTaskId) {
+      const task = todoList.find(t => t.id === timedTaskId);
+      if (task) {
+        updateTask({ ...task, actualTime: timerSeconds });
+        setTodoList([...getTodoList()]);
+      }
+    }
+    setTimedTaskId(null);
+    setTimerSeconds(0);
+  };
+
+  // --- Info modal content for best practices ---
   const [showInfoModal, setShowInfoModal] = useState(false);
   const infoContent = `
     <h4>To-Do List Best Practices</h4>
@@ -255,6 +221,14 @@ const TodoList: React.FC = () => {
   const handleDeleteAllDone = () => {
     setDoneList([]);
     localStorage.setItem('doneList', JSON.stringify([]));
+  };
+
+  // --- Delete task and update state ---
+  const handleDeleteTask = (task: TodoTask) => {
+    deleteTask(task.id, task.listType);
+    if (task.listType === 'todo') setTodoList([...getTodoList()]);
+    if (task.listType === 'done') setDoneList([...getDoneList()]);
+    if (task.listType === 'tomorrow') setTomorrowList([...getTomorrowList()]);
   };
 
   // Render
@@ -290,10 +264,8 @@ const TodoList: React.FC = () => {
           </div>
           <div className="fs-3 fw-bold">{formatTime(timerSeconds)}</div>
           <div>
-            {timerRunning ? (
+            {timedTaskId ? (
               <button className="btn btn-warning me-2" onClick={stopTimer}>Stop</button>
-            ) : timedTaskId ? (
-              <button className="btn btn-success me-2" onClick={() => setTimerRunning(true)}>Resume</button>
             ) : null}
           </div>
         </div>
@@ -342,30 +314,59 @@ const TodoList: React.FC = () => {
               onDragEnd={handleDragEnd}
               style={{ transition: 'background 0.2s' }}
             >
-              <div className="d-flex align-items-center flex-grow-1 gap-2" style={{ minWidth: 0 }}>
-                <span className="me-2" style={{ cursor: 'grab', fontSize: 18 }} title="Drag to reorder">☰</span>
-                <span className="me-2 flex-grow-1">{task.text}</span>
-                {task.source === 'Routine' && (
-                  <span className="badge bg-info text-dark ms-2" title="Auto-added from Habit">Routine</span>
-                )}
-                <span className="me-2 text-muted small">Est: {task.estimatedTime || '--'}</span>
-                <span className="me-2 text-muted small">Actual: {task.actualTime ? formatTime(task.actualTime) : '--'}</span>
-              </div>
+              {editingTaskId === task.id ? (
+                <div className="d-flex align-items-center flex-grow-1 gap-2" style={{ minWidth: 0 }}>
+                  <input
+                    type="text"
+                    className="form-control form-control-sm me-2"
+                    value={editingText}
+                    onChange={e => setEditingText(e.target.value)}
+                    style={{ minWidth: 0, flex: 1 }}
+                    autoFocus
+                    onKeyDown={e => { if (e.key === 'Enter') saveEdit(task); if (e.key === 'Escape') cancelEdit(); }}
+                  />
+                  <input
+                    type="text"
+                    className="form-control form-control-sm me-2"
+                    value={editingEst}
+                    onChange={e => setEditingEst(e.target.value)}
+                    placeholder="Est. min"
+                    style={{ width: 80 }}
+                    onKeyDown={e => { if (e.key === 'Enter') saveEdit(task); if (e.key === 'Escape') cancelEdit(); }}
+                  />
+                  <button className="btn btn-primary btn-sm me-1" onClick={() => saveEdit(task)}>Save</button>
+                  <button className="btn btn-secondary btn-sm me-1" onClick={cancelEdit}>Cancel</button>
+                </div>
+              ) : (
+                <div className="d-flex align-items-center flex-grow-1 gap-2" style={{ minWidth: 0 }}>
+                  <span className="me-2" style={{ cursor: 'grab', fontSize: 18 }} title="Drag to reorder">☰</span>
+                  <span className="me-2 flex-grow-1">{task.text}</span>
+                  {task.source === 'Routine' && (
+                    <span className="badge bg-info text-dark ms-2" title="Auto-added from Habit">Routine</span>
+                  )}
+                  {task.source === 'Goal' && (
+                    <span className="badge bg-primary text-light ms-2" title="Added from Goal">Goal</span>
+                  )}
+                  <span className="me-2 text-muted small">Est: {task.estimatedTime || '--'}</span>
+                  <span className="me-2 text-muted small">Actual: {task.actualTime ? formatTime(task.actualTime) : '--'}</span>
+                </div>
+              )}
               <div className="d-flex align-items-center ms-auto gap-2">
-                <button className="btn btn-outline-secondary btn-sm me-1" onClick={() => startEdit(task)} title="Edit">&#9998;</button>
-                <button className="btn btn-outline-info btn-sm me-1" onClick={() => pushToTomorrow(task)} title="Push to Tomorrow">&rarr;</button>
-                {timedTaskId === task.id ? (
-                  timerRunning ? (
-                    <button className="btn btn-warning btn-sm me-1" onClick={stopTimer}>Stop</button>
-                  ) : (
-                    <button className="btn btn-success btn-sm me-1" onClick={() => setTimerRunning(true)}>Resume</button>
-                  )
-                ) : (
-                  <button className="btn btn-success btn-sm me-1" onClick={() => startTimer(task)} disabled={!!timedTaskId}>Start</button>
+                {editingTaskId === task.id ? null : (
+                  <>
+                    <button className="btn btn-outline-secondary btn-sm me-1" onClick={() => startEdit(task)} title="Edit">&#9998;</button>
+                    <button className="btn btn-outline-danger btn-sm me-1" onClick={() => handleDeleteTask(task)} title="Delete">&times;</button>
+                    <button className="btn btn-outline-info btn-sm me-1" onClick={() => pushToTomorrow(task)} title="Push to Tomorrow">&rarr;</button>
+                    {timedTaskId === task.id ? (
+                      <button className="btn btn-warning btn-sm me-1" onClick={stopTimer}>Stop</button>
+                    ) : (
+                      <button className="btn btn-success btn-sm me-1" onClick={() => startTimer(task)} disabled={!!timedTaskId}>Start</button>
+                    )}
+                    <button className="btn p-0 me-2" style={{background: 'none', border: 'none'}} onClick={() => completeTask(task)} title="Mark as done">
+                      <GreenCheckmark size={24} />
+                    </button>
+                  </>
                 )}
-                <button className="btn p-0 me-2" style={{background: 'none', border: 'none'}} onClick={() => completeTask(task)} title="Mark as done">
-                  <GreenCheckmark size={24} />
-                </button>
               </div>
             </li>
           ))}
@@ -378,15 +379,44 @@ const TodoList: React.FC = () => {
         <ul className="list-group mb-4">
           {doneList.map(task => (
             <li key={task.id} className="list-group-item d-flex align-items-center justify-content-between">
-              <span className="me-2 flex-grow-1">{task.text}</span>
-              <span className="me-2 text-muted small">Est: {task.estimatedTime || '--'}</span>
-              <span className="me-2 text-muted small">Actual: {task.actualTime ? formatTime(task.actualTime) : '--'}</span>
-              <button className="btn btn-outline-secondary btn-sm me-1" onClick={() => startEdit(task)} title="Edit">
-                &#9998;
-              </button>
-              <button className="btn btn-outline-danger btn-sm me-1" onClick={() => handleDelete(task)} title="Delete">
-                &times;
-              </button>
+              {editingTaskId === task.id ? (
+                <>
+                  <input
+                    type="text"
+                    className="form-control form-control-sm me-2"
+                    value={editingText}
+                    onChange={e => setEditingText(e.target.value)}
+                    style={{ minWidth: 0, flex: 1 }}
+                    autoFocus
+                    onKeyDown={e => { if (e.key === 'Enter') saveEdit(task); if (e.key === 'Escape') cancelEdit(); }}
+                  />
+                  <input
+                    type="text"
+                    className="form-control form-control-sm me-2"
+                    value={editingEst}
+                    onChange={e => setEditingEst(e.target.value)}
+                    placeholder="Est. min"
+                    style={{ width: 80 }}
+                    onKeyDown={e => { if (e.key === 'Enter') saveEdit(task); if (e.key === 'Escape') cancelEdit(); }}
+                  />
+                  <button className="btn btn-primary btn-sm me-1" onClick={() => saveEdit(task)}>Save</button>
+                  <button className="btn btn-secondary btn-sm me-1" onClick={cancelEdit}>Cancel</button>
+                </>
+              ) : (
+                <>
+                  <span className="me-2 flex-grow-1">{task.text}</span>
+                  <span className="me-2 text-muted small">Est: {task.estimatedTime || '--'}</span>
+                  <span className="me-2 text-muted small">Actual: {task.actualTime ? formatTime(task.actualTime) : '--'}</span>
+                </>
+              )}
+              <div className="d-flex align-items-center ms-auto gap-2">
+                {editingTaskId === task.id ? null : (
+                  <>
+                    <button className="btn btn-outline-secondary btn-sm me-1" onClick={() => startEdit(task)} title="Edit">&#9998;</button>
+                    <button className="btn btn-outline-danger btn-sm me-1" onClick={() => handleDeleteTask(task)} title="Delete">&times;</button>
+                  </>
+                )}
+              </div>
             </li>
           ))}
         </ul>
@@ -395,17 +425,44 @@ const TodoList: React.FC = () => {
         <ul className="list-group mb-4">
           {tomorrowList.map(task => (
             <li key={task.id} className="list-group-item d-flex align-items-center justify-content-between">
-              <span className="me-2 flex-grow-1">{task.text}</span>
-              <span className="me-2 text-muted small">Est: {task.estimatedTime || '--'}</span>
-              <button className="btn btn-outline-secondary btn-sm me-1" onClick={() => startEdit(task)} title="Edit">
-                &#9998;
-              </button>
-              <button className="btn btn-outline-danger btn-sm me-1" onClick={() => handleDelete(task)} title="Delete">
-                &times;
-              </button>
-              <button className="btn btn-outline-primary btn-sm me-1" onClick={() => moveToToday(task)} title="Move to Today">
-                &larr;
-              </button>
+              {editingTaskId === task.id ? (
+                <>
+                  <input
+                    type="text"
+                    className="form-control form-control-sm me-2"
+                    value={editingText}
+                    onChange={e => setEditingText(e.target.value)}
+                    style={{ minWidth: 0, flex: 1 }}
+                    autoFocus
+                    onKeyDown={e => { if (e.key === 'Enter') saveEdit(task); if (e.key === 'Escape') cancelEdit(); }}
+                  />
+                  <input
+                    type="text"
+                    className="form-control form-control-sm me-2"
+                    value={editingEst}
+                    onChange={e => setEditingEst(e.target.value)}
+                    placeholder="Est. min"
+                    style={{ width: 80 }}
+                    onKeyDown={e => { if (e.key === 'Enter') saveEdit(task); if (e.key === 'Escape') cancelEdit(); }}
+                  />
+                  <button className="btn btn-primary btn-sm me-1" onClick={() => saveEdit(task)}>Save</button>
+                  <button className="btn btn-secondary btn-sm me-1" onClick={cancelEdit}>Cancel</button>
+                </>
+              ) : (
+                <>
+                  <span className="me-2 flex-grow-1">{task.text}</span>
+                  <span className="me-2 text-muted small">Est: {task.estimatedTime || '--'}</span>
+                </>
+              )}
+              <div className="d-flex align-items-center ms-auto gap-2">
+                {editingTaskId === task.id ? null : (
+                  <>
+                    <button className="btn btn-outline-secondary btn-sm me-1" onClick={() => startEdit(task)} title="Edit">&#9998;</button>
+                    <button className="btn btn-outline-danger btn-sm me-1" onClick={() => handleDeleteTask(task)} title="Delete">&times;</button>
+                    <button className="btn btn-outline-primary btn-sm me-1" onClick={() => moveToToday(task)} title="Move to Today">&larr;</button>
+                  </>
+                )}
+              </div>
             </li>
           ))}
         </ul>

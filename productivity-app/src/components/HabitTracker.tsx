@@ -1,3 +1,7 @@
+// HabitTracker.tsx
+// Main Habit Tracker component for the productivity app.
+// Handles habit CRUD, completion tracking, 8-week calendar, drag-and-drop, and integration with To-Do list.
+
 import React, { useState, useEffect, useRef } from 'react';
 import type { Habit, FrequencyType, HabitType } from '../utils/habitLocalStorage';
 import {
@@ -17,7 +21,7 @@ const formatTime12h = (time: string) => {
   return `${hour}:${m.toString().padStart(2, '0')} ${ampm}`;
 };
 
-// Helper to get last N weeks' dates
+// Helper to get last N weeks' dates for the calendar
 const getLastNWeeks = (n: number): string[][] => {
   const today = new Date();
   const weeks: string[][] = [];
@@ -36,7 +40,7 @@ const getLastNWeeks = (n: number): string[][] => {
 };
 
 const HabitTracker: React.FC = () => {
-  // Weekly refresh: clear completions if new week (but keep stats)
+  // --- Weekly refresh: clear completions if new week (but keep stats) ---
   useEffect(() => {
     const lastWeek = localStorage.getItem('habitLastWeek');
     const now = new Date();
@@ -48,6 +52,7 @@ const HabitTracker: React.FC = () => {
     }
   }, []);
 
+  // --- State ---
   const [habits, setHabits] = useState<Habit[]>(getHabits());
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<Partial<Habit>>({ frequency: { type: 'daily' }, habitType: 'good' });
@@ -59,9 +64,10 @@ const HabitTracker: React.FC = () => {
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
 
-  // Filtered habits for rendering and drag-and-drop
+  // --- Filtered habits for rendering and drag-and-drop ---
   const filteredHabits = habits.filter(h => filter === 'all' || h.habitType === filter);
 
+  // --- Drag-and-drop handlers for habits ---
   const handleDragStart = (index: number) => setDraggedIndex(index);
   const handleDragOver = (index: number) => setDragOverIndex(index);
   const handleDrop = (index: number) => {
@@ -88,12 +94,12 @@ const HabitTracker: React.FC = () => {
     setDragOverIndex(null);
   };
 
-  // Refresh habits from storage
+  // --- Refresh habits from storage on mount ---
   useEffect(() => {
     setHabits(getHabits());
   }, []);
 
-  // Info modal content
+  // --- Info modal content for best practices ---
   const infoContent = `
     <h4>Habit Tracking Best Practices</h4>
     <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.</p>
@@ -116,7 +122,7 @@ const HabitTracker: React.FC = () => {
     <p>Studies show that it takes an average of 66 days to form a new habit. However, this can vary from 18 to 254 days depending on the person and the habit.</p>
   `;
 
-  // Add or update habit
+  // --- Add or update habit (handles auto-add to To-Do if enabled) ---
   const handleSave = () => {
     if (!form.name || !form.frequency) return;
     let habitId: string = editingId || '';
@@ -167,7 +173,7 @@ const HabitTracker: React.FC = () => {
     setHabits(getHabits());
   };
 
-  // Mark complete for today
+  // --- Mark complete/uncomplete for today (updates stats and calendar) ---
   const handleToggleComplete = (habit: Habit, date: string) => {
     const stats = getHabitStats(habit);
     if (stats.completions.includes(date)) {
@@ -179,7 +185,7 @@ const HabitTracker: React.FC = () => {
     setDummy(d => d + 1); // force re-render
   };
 
-  // Render
+  // --- Calendar and stats helpers ---
   const weekDates = getCurrentWeekDates();
   const weekDayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
   const last8Weeks = getLastNWeeks(8);

@@ -1,3 +1,11 @@
+/**
+ * todoLocalStorage.ts
+ * Handles all To-Do list localStorage operations and task manipulation logic for the productivity app.
+ * Provides CRUD operations for To-Do, Done, and Tomorrow lists, as well as rollover and task movement utilities.
+ */
+
+import { getListFromStorage, saveListToStorage } from './storageHelpers';
+
 export interface TodoTask {
   id: string;
   text: string;
@@ -16,37 +24,60 @@ export interface TodoTask {
 const TODO_KEY = 'todoList';
 const DONE_KEY = 'doneList';
 const TOMORROW_KEY = 'tomorrowList';
-const LAST_ACTIVE_DATE_KEY = 'todoLastActiveDate';
 
+/**
+ * Get the current To-Do list from localStorage.
+ * @returns {TodoTask[]} Array of To-Do tasks.
+ */
 export const getTodoList = (): TodoTask[] => {
-  const data = localStorage.getItem(TODO_KEY);
-  return data ? JSON.parse(data) : [];
+  return getListFromStorage<TodoTask>(TODO_KEY);
 };
+
+/**
+ * Get the current Done list from localStorage.
+ * @returns {TodoTask[]} Array of completed tasks.
+ */
 export const getDoneList = (): TodoTask[] => {
-  const data = localStorage.getItem(DONE_KEY);
-  return data ? JSON.parse(data) : [];
+  return getListFromStorage<TodoTask>(DONE_KEY);
 };
+
+/**
+ * Get the current Tomorrow list from localStorage.
+ * @returns {TodoTask[]} Array of tasks scheduled for tomorrow.
+ */
 export const getTomorrowList = (): TodoTask[] => {
-  const data = localStorage.getItem(TOMORROW_KEY);
-  return data ? JSON.parse(data) : [];
-};
-export const getLastActiveDate = (): string | null => {
-  return localStorage.getItem(LAST_ACTIVE_DATE_KEY);
+  return getListFromStorage<TodoTask>(TOMORROW_KEY);
 };
 
+/**
+ * Save the To-Do list to localStorage.
+ * @param {TodoTask[]} list - Array of To-Do tasks to save.
+ */
 export const saveTodoList = (list: TodoTask[]) => {
-  localStorage.setItem(TODO_KEY, JSON.stringify(list));
-};
-export const saveDoneList = (list: TodoTask[]) => {
-  localStorage.setItem(DONE_KEY, JSON.stringify(list));
-};
-export const saveTomorrowList = (list: TodoTask[]) => {
-  localStorage.setItem(TOMORROW_KEY, JSON.stringify(list));
-};
-export const saveLastActiveDate = (date: string) => {
-  localStorage.setItem(LAST_ACTIVE_DATE_KEY, date);
+  saveListToStorage(TODO_KEY, list);
 };
 
+/**
+ * Save the Done list to localStorage.
+ * @param {TodoTask[]} list - Array of completed tasks to save.
+ */
+export const saveDoneList = (list: TodoTask[]) => {
+  saveListToStorage(DONE_KEY, list);
+};
+
+/**
+ * Save the Tomorrow list to localStorage.
+ * @param {TodoTask[]} list - Array of tasks scheduled for tomorrow to save.
+ */
+export const saveTomorrowList = (list: TodoTask[]) => {
+  saveListToStorage(TOMORROW_KEY, list);
+};
+
+/**
+ * Add a new task to the To-Do or Tomorrow list.
+ * @param {Omit<TodoTask, 'id' | 'createdAt'>} task - Task data (without id/createdAt).
+ * @returns {TodoTask} The newly created task with id and createdAt.
+ */
 export const addTask = (task: Omit<TodoTask, 'id' | 'createdAt'>): TodoTask => {
   const newTask: TodoTask = {
     ...task,
@@ -64,6 +95,10 @@ export const addTask = (task: Omit<TodoTask, 'id' | 'createdAt'>): TodoTask => {
   return newTask;
 };
 
+/**
+ * Update an existing task in the appropriate list.
+ * @param {TodoTask} task - The updated task object.
+ */
 export const updateTask = (task: TodoTask) => {
   let list: TodoTask[] = [];
   if (task.listType === 'todo') {
@@ -78,6 +113,11 @@ export const updateTask = (task: TodoTask) => {
   }
 };
 
+/**
+ * Delete a task from the specified list.
+ * @param {string} id - Task id to delete.
+ * @param {'todo' | 'done' | 'tomorrow'} listType - List type to delete from.
+ */
 export const deleteTask = (id: string, listType: 'todo' | 'done' | 'tomorrow') => {
   let list: TodoTask[] = [];
   if (listType === 'todo') {
@@ -92,6 +132,12 @@ export const deleteTask = (id: string, listType: 'todo' | 'done' | 'tomorrow') =
   }
 };
 
+/**
+ * Move a task from one list to another (e.g., To-Do → Done).
+ * @param {string} id - Task id to move.
+ * @param {'todo' | 'done' | 'tomorrow'} from - Source list.
+ * @param {'todo' | 'done' | 'tomorrow'} to - Destination list.
+ */
 export const moveTask = (id: string, from: 'todo' | 'done' | 'tomorrow', to: 'todo' | 'done' | 'tomorrow') => {
   let fromList: TodoTask[] = [];
   let toList: TodoTask[] = [];
@@ -127,20 +173,25 @@ export const moveTask = (id: string, from: 'todo' | 'done' | 'tomorrow', to: 'to
   }
 };
 
+/**
+ * Rollover logic: On app load, move any Tomorrow tasks whose createdAt is before today to the To-Do list.
+ * This is per-task and does not rely on a global last active date.
+ */
 export const rolloverIfNeeded = () => {
-  const lastDate = getLastActiveDate();
   const today = new Date().toISOString().slice(0, 10);
-  if (lastDate !== today) {
-    // Clear done list
-    saveDoneList([]);
-    // Move tomorrow list to todo list
-    const tomorrow = getTomorrowList();
-    const todo = getTodoList();
-    saveTodoList([
+  const tomorrow = getTomorrowList();
+  const todo = getTodoList();
+  // Tasks to move: createdAt < today
+  const toMove = tomorrow.filter(t => t.createdAt && t.createdAt.slice(0, 10) < today);
+  if (toMove.length > 0) {
+    // Move to To-Do, update listType
+    const updatedTodo = [
       ...todo,
-      ...tomorrow.map(t => ({ ...t, listType: 'todo' as 'todo' }))
-    ]);
-    saveTomorrowList([]);
-    saveLastActiveDate(today);
+      ...toMove.map(t => ({ ...t, listType: 'todo' as 'todo' }))
+    ];
+    saveTodoList(updatedTodo);
+    // Remove from Tomorrow
+    const remainingTomorrow = tomorrow.filter(t => !(t.createdAt && t.createdAt.slice(0, 10) < today));
+    saveTomorrowList(remainingTomorrow);
   }
 }; 

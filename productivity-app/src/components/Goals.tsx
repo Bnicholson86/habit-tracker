@@ -1,3 +1,7 @@
+// Goals.tsx
+// Main Goals component for the productivity app.
+// Handles goal and sub-goal CRUD, progress, completion, feedback, drag-and-drop, and integration with To-Do list.
+
 import React, { useState, useEffect, useMemo } from 'react';
 import type { Goal } from '../utils/goalsLocalStorage';
 import { 
@@ -12,6 +16,7 @@ import GoalItem from './goals/GoalItem';
 // import GoalItem from './goals/GoalItem';
 
 const Goals: React.FC = () => {
+  // --- State ---
   const [goals, setGoals] = useState<Goal[]>([]);
   const [showInfoModal, setShowInfoModal] = useState(false);
   const infoContent = `
@@ -31,6 +36,7 @@ const Goals: React.FC = () => {
     </ul>
   `;
 
+  // --- Load and sync goals from localStorage, listen for updates ---
   useEffect(() => {
     setGoals(getGoals());
     const handler = () => setGoals(getGoals());
@@ -38,6 +44,7 @@ const Goals: React.FC = () => {
     return () => window.removeEventListener('goalsUpdated', handler);
   }, []);
 
+  // --- Memoized filters for active and completed goals ---
   const activeGoals = useMemo(() => goals.filter(goal => !goal.completed), [goals]);
   const completedGoals = useMemo(() => goals.filter(goal => goal.completed).sort((a, b) => new Date(b.completedAt!).getTime() - new Date(a.completedAt!).getTime()), [goals]);
 
@@ -115,8 +122,8 @@ const Goals: React.FC = () => {
     }
   };
 
-  const handleEditSubGoalText = (goalId: string, subGoalId: string, newText: string) => {
-    const updatedGoal = updateSubGoalText(goalId, subGoalId, newText);
+  const handleEditSubGoalText = (goalId: string, subGoalId: string, newText: string, estimatedTime?: number) => {
+    const updatedGoal = updateSubGoalText(goalId, subGoalId, newText, estimatedTime);
     if (updatedGoal) {
       setGoals(prevGoals => prevGoals.map(g => g.id === goalId ? updatedGoal : g));
     }

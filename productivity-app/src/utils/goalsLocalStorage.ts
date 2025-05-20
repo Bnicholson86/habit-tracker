@@ -1,3 +1,11 @@
+/**
+ * goalsLocalStorage.ts
+ * Handles all Goal and Sub-Goal localStorage operations for the productivity app.
+ * Provides CRUD operations for goals and sub-goals, as well as progress, completion, and feedback logic.
+ */
+
+import { getListFromStorage, saveListToStorage } from './storageHelpers';
+
 export interface SubGoal {
   id: string;
   text: string;
@@ -21,19 +29,30 @@ export interface Goal {
 
 const GOALS_STORAGE_KEY = 'userGoals';
 
-// Helper to get goals from localStorage
+/**
+ * Get all goals from localStorage.
+ * @returns {Goal[]} Array of goals.
+ */
 export const getGoals = (): Goal[] => {
-  const goalsJson = localStorage.getItem(GOALS_STORAGE_KEY);
-  return goalsJson ? JSON.parse(goalsJson) : [];
+  return getListFromStorage<Goal>(GOALS_STORAGE_KEY);
 };
 
-// Helper to save goals to localStorage
+/**
+ * Save all goals to localStorage.
+ * @param {Goal[]} goals - Array of goals to save.
+ */
 const saveGoals = (goals: Goal[]): void => {
-  localStorage.setItem(GOALS_STORAGE_KEY, JSON.stringify(goals));
+  saveListToStorage(GOALS_STORAGE_KEY, goals);
 };
 
 // --- Main Goal Functions ---
 
+/**
+ * Add a new goal.
+ * @param {string} title - Goal title.
+ * @param {string} [rewardMotivation] - Optional reward or motivation.
+ * @returns {Goal} The newly created goal.
+ */
 export const addGoal = (title: string, rewardMotivation?: string): Goal => {
   const goals = getGoals();
   const newGoal: Goal = {
@@ -52,6 +71,11 @@ export const addGoal = (title: string, rewardMotivation?: string): Goal => {
   return newGoal;
 };
 
+/**
+ * Update an existing goal.
+ * @param {Goal} updatedGoal - The updated goal object.
+ * @returns {Goal[]} The updated array of goals.
+ */
 export const updateGoal = (updatedGoal: Goal): Goal[] => {
   let goals = getGoals();
   goals = goals.map(goal => (goal.id === updatedGoal.id ? updatedGoal : goal));
@@ -59,6 +83,11 @@ export const updateGoal = (updatedGoal: Goal): Goal[] => {
   return goals;
 };
 
+/**
+ * Delete a goal by id.
+ * @param {string} goalId - The id of the goal to delete.
+ * @returns {Goal[]} The updated array of goals.
+ */
 export const deleteGoal = (goalId: string): Goal[] => {
   let goals = getGoals();
   goals = goals.filter(goal => goal.id !== goalId);
@@ -66,6 +95,13 @@ export const deleteGoal = (goalId: string): Goal[] => {
   return goals;
 };
 
+/**
+ * Toggle completion status for a goal, with optional feedback.
+ * @param {string} goalId - The id of the goal.
+ * @param {boolean} isCompleted - Whether the goal is completed.
+ * @param {string} [feedbackText] - Optional feedback text.
+ * @returns {Goal | undefined} The updated goal, or undefined if not found.
+ */
 export const toggleGoalCompletion = (goalId: string, isCompleted: boolean, feedbackText?: string): Goal | undefined => {
   const goals = getGoals();
   const goalIndex = goals.findIndex(g => g.id === goalId);
@@ -84,6 +120,12 @@ export const toggleGoalCompletion = (goalId: string, isCompleted: boolean, feedb
   return goals[goalIndex];
 };
 
+/**
+ * Update the title of a goal.
+ * @param {string} goalId - The id of the goal.
+ * @param {string} newTitle - The new title.
+ * @returns {Goal | undefined} The updated goal, or undefined if not found.
+ */
 export const updateGoalTitle = (goalId: string, newTitle: string): Goal | undefined => {
   const goals = getGoals();
   const goalIndex = goals.findIndex(g => g.id === goalId);
@@ -93,6 +135,12 @@ export const updateGoalTitle = (goalId: string, newTitle: string): Goal | undefi
   return goals[goalIndex];
 };
 
+/**
+ * Toggle auto-progress for a goal. If enabling, recalculate progress from sub-goals.
+ * @param {string} goalId - The id of the goal.
+ * @param {boolean} auto - Whether to enable auto-progress.
+ * @returns {Goal | undefined} The updated goal, or undefined if not found.
+ */
 export const toggleGoalAutoProgress = (goalId: string, auto: boolean): Goal | undefined => {
   const goals = getGoals();
   const goalIndex = goals.findIndex(g => g.id === goalId);
@@ -114,6 +162,13 @@ export const toggleGoalAutoProgress = (goalId: string, auto: boolean): Goal | un
 
 // --- Sub-Goal Functions ---
 
+/**
+ * Add a new sub-goal to a goal.
+ * @param {string} goalId - The id of the parent goal.
+ * @param {string} text - The sub-goal text.
+ * @param {number} [estimatedTime] - Optional estimated time in minutes.
+ * @returns {Goal | undefined} The updated goal, or undefined if not found.
+ */
 export const addSubGoal = (goalId: string, text: string, estimatedTime?: number): Goal | undefined => {
   const goals = getGoals();
   const goalIndex = goals.findIndex(g => g.id === goalId);
@@ -132,6 +187,13 @@ export const addSubGoal = (goalId: string, text: string, estimatedTime?: number)
   return goals[goalIndex];
 };
 
+/**
+ * Update the completion status of a sub-goal.
+ * @param {string} goalId - The id of the parent goal.
+ * @param {string} subGoalId - The id of the sub-goal.
+ * @param {boolean} completed - Whether the sub-goal is completed.
+ * @returns {Goal | undefined} The updated goal, or undefined if not found.
+ */
 export const updateSubGoal = (goalId: string, subGoalId: string, completed: boolean): Goal | undefined => {
   const goals = getGoals();
   const goalIndex = goals.findIndex(g => g.id === goalId);
@@ -145,6 +207,12 @@ export const updateSubGoal = (goalId: string, subGoalId: string, completed: bool
   return goals[goalIndex];
 };
 
+/**
+ * Delete a sub-goal from a goal.
+ * @param {string} goalId - The id of the parent goal.
+ * @param {string} subGoalId - The id of the sub-goal to delete.
+ * @returns {Goal | undefined} The updated goal, or undefined if not found.
+ */
 export const deleteSubGoal = (goalId: string, subGoalId: string): Goal | undefined => {
   const goals = getGoals();
   const goalIndex = goals.findIndex(g => g.id === goalId);
@@ -155,6 +223,14 @@ export const deleteSubGoal = (goalId: string, subGoalId: string): Goal | undefin
   return goals[goalIndex];
 };
 
+/**
+ * Update the text and/or estimated time of a sub-goal.
+ * @param {string} goalId - The id of the parent goal.
+ * @param {string} subGoalId - The id of the sub-goal.
+ * @param {string} newText - The new sub-goal text.
+ * @param {number} [estimatedTime] - Optional new estimated time in minutes.
+ * @returns {Goal | undefined} The updated goal, or undefined if not found.
+ */
 export const updateSubGoalText = (goalId: string, subGoalId: string, newText: string, estimatedTime?: number): Goal | undefined => {
   const goals = getGoals();
   const goalIndex = goals.findIndex(g => g.id === goalId);

@@ -1,9 +1,19 @@
+/**
+ * routine.ts
+ * Handles daily routines for habits, specifically auto-adding eligible habits to the To-Do list each day.
+ * Provides helpers to determine if a habit is scheduled for today and to run the daily routine on app load.
+ */
+
 import { getHabits } from './habitLocalStorage';
 import { getTodoList, addTask } from './todoLocalStorage';
 import type { Habit } from './habitLocalStorage';
 import type { TodoTask } from './todoLocalStorage';
 
-// Helper: is this habit scheduled for today?
+/**
+ * Determine if a habit is scheduled for today based on its frequency.
+ * @param {Habit} habit - The habit to check.
+ * @returns {boolean} True if the habit is scheduled for today, false otherwise.
+ */
 export function isHabitScheduledForToday(habit: Habit): boolean {
   const today = new Date();
   const dayOfWeek = today.getDay(); // 0=Sun, 6=Sat
@@ -15,12 +25,19 @@ export function isHabitScheduledForToday(habit: Habit): boolean {
   return false;
 }
 
-// Helper: get today's date string (YYYY-MM-DD)
+/**
+ * Get today's date string in YYYY-MM-DD format.
+ * @returns {string} Today's date string.
+ */
 function todayStr() {
   return new Date().toISOString().slice(0, 10);
 }
 
-// Main routine: run on app load
+/**
+ * Main routine: On app load, auto-add eligible habits to the To-Do list for today if not already present.
+ * Only adds 'good' habits with autoAddToTodo enabled and scheduled for today.
+ * Side effect: may add new tasks to the To-Do list in localStorage.
+ */
 export function runDailyHabitRoutines() {
   const habits = getHabits();
   const todoList = getTodoList();

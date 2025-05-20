@@ -298,6 +298,9 @@ const PomodoroTimer: React.FC = () => {
     window.alert(`Added to To-Do List as ${completed ? 'completed' : 'uncompleted'} task.`);
   };
 
+  // Helper to format minutes as mm:ss
+  const formatMinutes = (min: number) => `${min.toString().padStart(2, '0')}:00`;
+
   return (
     <>
       <div className='text-center container pb-5'>
@@ -363,13 +366,13 @@ const PomodoroTimer: React.FC = () => {
                   </div>
                   {idx < 3 && (
                     <div className="text-center text-muted my-1" style={{width: '100%'}}>
-                      <span>Short Break</span>
+                      <span>Short Break ({formatMinutes(pomodoroSettings.shortBreakDuration)})</span>
                     </div>
                   )}
                 </React.Fragment>
               ))}
               <div className="text-center text-info mt-2" style={{width: '100%'}}>
-                <span>Long Break after Pomodoro 4</span>
+                <span>Long Break ({formatMinutes(pomodoroSettings.longBreakDuration)}) after Pomodoro 4</span>
               </div>
             </div>
           </div>

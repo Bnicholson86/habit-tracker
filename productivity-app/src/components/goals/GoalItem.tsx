@@ -1,3 +1,7 @@
+// GoalItem.tsx
+// Renders a single Goal and its sub-goals for the productivity app.
+// Handles sub-goal CRUD, drag-and-drop, editing, auto progress, and completion/feedback UI.
+
 import React, { useState, useMemo } from 'react';
 import type { Goal, SubGoal } from '../../utils/goalsLocalStorage'; // Adjusted path
 // We'll need these later from goalsLocalStorage or passed as props from Goals.tsx
@@ -31,6 +35,7 @@ const GoalItem: React.FC<GoalItemProps> = ({
   onEditSubGoalText,
   onToggleAutoProgress,
 }) => {
+  // --- State for editing, feedback, drag-and-drop, etc. ---
   const [newSubGoalText, setNewSubGoalText] = useState('');
   const [isCompleting, setIsCompleting] = useState(false);
   const [feedbackText, setFeedbackText] = useState('');
@@ -38,11 +43,12 @@ const GoalItem: React.FC<GoalItemProps> = ({
   const [editedTitle, setEditedTitle] = useState(goal.title);
   const [editingSubGoalId, setEditingSubGoalId] = useState<string | null>(null);
   const [editedSubGoalText, setEditedSubGoalText] = useState('');
+  const [editedSubGoalEst, setEditedSubGoalEst] = useState<number | ''>('');
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const [subGoals, setSubGoals] = useState(goal.subGoals);
 
-  // Calculate auto progress if enabled
+  // --- Auto progress calculation (if enabled) ---
   const autoProgressValue = useMemo(() => {
     if (!goal.autoProgress) return goal.progress;
     if (goal.subGoals.length === 0) return 0;
@@ -50,31 +56,31 @@ const GoalItem: React.FC<GoalItemProps> = ({
     return Math.round((completedCount / goal.subGoals.length) * 100);
   }, [goal.autoProgress, goal.subGoals, goal.progress]);
 
-  // Keep subGoals in sync with goal.subGoals
+  // --- Keep subGoals in sync with parent goal ---
   React.useEffect(() => { setSubGoals(goal.subGoals); }, [goal.subGoals]);
 
+  // --- Add new sub-goal ---
   const handleAddSubGoal = () => {
     if (newSubGoalText.trim() === '') return;
     onAddSubGoal(goal.id, newSubGoalText.trim());
     setNewSubGoalText('');
   };
 
+  // --- Complete goal: show feedback modal ---
   const handleCompleteClick = () => {
     setIsCompleting(true);
   };
-
   const handleSaveCompletion = () => {
     onToggleComplete(goal.id, feedbackText);
     setIsCompleting(false);
     setFeedbackText('');
   };
-
   const handleCancelCompletion = () => {
     setIsCompleting(false);
     setFeedbackText('');
   };
 
-  // --- Edit Main Goal Title ---
+  // --- Edit main goal title ---
   const startEditTitle = () => {
     setEditedTitle(goal.title);
     setEditingTitle(true);
@@ -90,23 +96,27 @@ const GoalItem: React.FC<GoalItemProps> = ({
     setEditedTitle(goal.title);
   };
 
-  // --- Edit Sub-goal Text ---
+  // --- Edit sub-goal text ---
   const startEditSubGoal = (subGoal: SubGoal) => {
     setEditingSubGoalId(subGoal.id);
     setEditedSubGoalText(subGoal.text);
+    setEditedSubGoalEst(typeof subGoal.estimatedTime === 'number' ? subGoal.estimatedTime : '');
   };
   const saveEditSubGoal = (subGoal: SubGoal) => {
-    if (editedSubGoalText.trim() && editedSubGoalText !== subGoal.text) {
-      onEditSubGoalText(goal.id, subGoal.id, editedSubGoalText.trim(), subGoal.estimatedTime);
+    if (editedSubGoalText.trim() && (editedSubGoalText !== subGoal.text || editedSubGoalEst !== subGoal.estimatedTime)) {
+      onEditSubGoalText(goal.id, subGoal.id, editedSubGoalText.trim(), editedSubGoalEst === '' ? undefined : Number(editedSubGoalEst));
     }
     setEditingSubGoalId(null);
     setEditedSubGoalText('');
+    setEditedSubGoalEst('');
   };
   const cancelEditSubGoal = () => {
     setEditingSubGoalId(null);
     setEditedSubGoalText('');
+    setEditedSubGoalEst('');
   };
 
+  // --- Drag-and-drop handlers for sub-goals ---
   const handleDragStart = (index: number) => setDraggedIndex(index);
   const handleDragOver = (index: number) => setDragOverIndex(index);
   const handleDrop = (index: number) => {
@@ -119,23 +129,16 @@ const GoalItem: React.FC<GoalItemProps> = ({
     const [moved] = newList.splice(draggedIndex, 1);
     newList.splice(index, 0, moved);
     setSubGoals(newList);
-    // Persist new order to parent (by updating all sub-goal texts in order)
-    // (Assumes sub-goal order is not critical for IDs, just for display)
-    // Optionally, you could add a 'sortOrder' field to SubGoal for more robust persistence
-    // For now, just update the parent goal's subGoals order
-    // This will be reflected on next parent update
-    // (If you want to persist order, you may need to update the parent goal in localStorage)
-    // For now, just update UI
+    // Optionally: trigger a parent update here if you want to persist order
     setDraggedIndex(null);
     setDragOverIndex(null);
-    // Optionally: trigger a parent update here if you want to persist order
   };
   const handleDragEnd = () => {
     setDraggedIndex(null);
     setDragOverIndex(null);
   };
 
-  // Helper to update estimatedTime for a sub-goal
+  // --- Helper to update estimatedTime for a sub-goal ---
   const handleEstimatedTimeChange = (goalId: string, subGoalId: string, newText: string, estimatedTime?: number) => {
     onEditSubGoalText(goalId, subGoalId, newText, estimatedTime);
   };
@@ -167,14 +170,16 @@ const GoalItem: React.FC<GoalItemProps> = ({
             </button>
           </>
         )}
-        <div>
+        <div className="d-flex align-items-center gap-2">
           {!isCompleting && (
-            <button onClick={handleCompleteClick} className="btn p-0 me-2" style={{background: 'none', border: 'none'}} title="Mark as complete">
-              <GreenCheckmark size={32} />
+            <button onClick={handleCompleteClick} className="btn btn-success btn-lg p-0 d-inline-flex align-items-center justify-content-center" style={{ width: 44, height: 44 }} title="Mark as complete">
+              <GreenCheckmark size={28} />
             </button>
           )}
-          <button onClick={() => onDeleteGoal(goal.id)} className="btn btn-danger btn-sm">
-            &times;
+          <button onClick={() => onDeleteGoal(goal.id)} className="btn btn-danger btn-lg p-0 d-inline-flex align-items-center justify-content-center" style={{ width: 44, height: 44 }} title="Delete goal">
+            <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%', fontSize: 28, fontWeight: 'bold', lineHeight: 1 }}>
+              ×
+            </span>
           </button>
         </div>
       </div>
@@ -245,6 +250,15 @@ const GoalItem: React.FC<GoalItemProps> = ({
                         autoFocus
                         style={{width: 'auto', minWidth: 100}}
                       />
+                      <input
+                        type="number"
+                        className="form-control form-control-sm me-2"
+                        placeholder="min"
+                        min={0}
+                        value={editedSubGoalEst}
+                        onChange={e => setEditedSubGoalEst(e.target.value === '' ? '' : Number(e.target.value))}
+                        style={{width: 70}}
+                      />
                       <button className="btn btn-primary btn-sm me-1" onClick={() => saveEditSubGoal(subGoal)}>Save</button>
                       <button className="btn btn-secondary btn-sm" onClick={cancelEditSubGoal}>Cancel</button>
                     </>
@@ -252,24 +266,15 @@ const GoalItem: React.FC<GoalItemProps> = ({
                     <>
                       <label htmlFor={`subgoal-${subGoal.id}`} style={{ textDecoration: subGoal.completed ? 'line-through' : 'none', minWidth: 0, flex: 1 }}>
                         {subGoal.text}
+                        {typeof subGoal.estimatedTime === 'number' && (
+                          <span className="text-muted ms-2">({subGoal.estimatedTime} min)</span>
+                        )}
                       </label>
                       <button className="btn btn-outline-secondary btn-sm ms-2" onClick={() => startEditSubGoal(subGoal)} title="Edit sub-goal">
                         &#9998;
                       </button>
                     </>
                   )}
-                  <input
-                    type="number"
-                    className="form-control form-control-sm ms-2"
-                    placeholder="min"
-                    min={0}
-                    style={{width: 70}}
-                    value={subGoal.estimatedTime !== undefined ? subGoal.estimatedTime : ''}
-                    onChange={e => {
-                      const val = e.target.value;
-                      handleEstimatedTimeChange(goal.id, subGoal.id, subGoal.text, val ? Number(val) : undefined);
-                    }}
-                  />
                 </div>
                 <div className="d-flex align-items-center ms-auto gap-2">
                   <button
@@ -278,12 +283,14 @@ const GoalItem: React.FC<GoalItemProps> = ({
                     onClick={() => {
                       addTask({
                         text: subGoal.text,
-                        estimatedTime: subGoal.estimatedTime ? String(subGoal.estimatedTime) : '',
+                        estimatedTime: subGoal.estimatedTime !== undefined ? String(subGoal.estimatedTime) : '',
                         completed: false,
                         listType: 'todo',
                         goalId: goal.id,
                         subGoalId: subGoal.id,
+                        source: 'Goal',
                       });
+                      window.dispatchEvent(new Event('todoListUpdated'));
                     }}
                   >
                     <i className="bi bi-link-45deg"></i>
