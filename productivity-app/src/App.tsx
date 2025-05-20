@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import reactLogo from './assets/react.svg'
 import viteLogo from '/vite.svg'
 import TodoList from './components/TodoList'
@@ -6,26 +6,16 @@ import PomodoroTimer from './components/PomodoroTimer'
 import HabitTracker from './components/HabitTracker'
 import Goals from './components/Goals'
 import './App.css'
+import { runDailyHabitRoutines } from './utils/routine'
 
 type TabName = 'Todo' | 'Pomodoro' | 'Habits' | 'Goals'
 
 function App() {
   const [activeTab, setActiveTab] = useState<TabName>('Todo')
 
-  const renderTabContent = () => {
-    switch (activeTab) {
-      case 'Todo':
-        return <TodoList />
-      case 'Pomodoro':
-        return <PomodoroTimer />
-      case 'Habits':
-        return <HabitTracker />
-      case 'Goals':
-        return <Goals />
-      default:
-        return null
-    }
-  }
+  useEffect(() => {
+    runDailyHabitRoutines();
+  }, []);
 
   return (
     <div className='container mt-3'>
@@ -64,7 +54,18 @@ function App() {
         </li>
       </ul>
       <div className='tab-content mt-3'>
-        {renderTabContent()}
+        <div style={{ display: activeTab === 'Todo' ? 'block' : 'none' }}>
+          <TodoList />
+        </div>
+        <div style={{ display: activeTab === 'Pomodoro' ? 'block' : 'none' }}>
+          <PomodoroTimer />
+        </div>
+        <div style={{ display: activeTab === 'Habits' ? 'block' : 'none' }}>
+          <HabitTracker />
+        </div>
+        <div style={{ display: activeTab === 'Goals' ? 'block' : 'none' }}>
+          <Goals />
+        </div>
       </div>
     </div>
   )
